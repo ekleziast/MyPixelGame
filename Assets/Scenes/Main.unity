@@ -272,6 +272,11 @@ MonoBehaviour:
   maxFallVelocity: 15
   linearDrag: 0.5
   playerMass: 1
+  jumpForce: 7
+  groundLayer:
+    serializedVersion: 2
+    m_Bits: 0
+  groundCheckDistance: 0.2
   maxHealth: 100
   currentHealth: 0
   maxMana: 50
@@ -591,6 +596,10 @@ PrefabInstance:
       propertyPath: m_TagString
       value: Player
       objectReference: {fileID: 0}
+    - target: {fileID: 5657391670675221042, guid: 139393adf4a087e4981128fbeaf4a252, type: 3}
+      propertyPath: m_Controller
+      value: 
+      objectReference: {fileID: 9100000, guid: 132805fe309e7a946b2a57ab0f7a678b, type: 2}
     - target: {fileID: 8398041489309813023, guid: 139393adf4a087e4981128fbeaf4a252, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0

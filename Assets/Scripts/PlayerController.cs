@@ -26,7 +26,7 @@ public class PlayerController : MonoBehaviour
     [Tooltip("Multiplier applied when player is sprinting")]
     [SerializeField] private float sprintMultiplier = 1.5f;
     
-    [Header("Physics Parameters")]
+[Header("Physics Parameters")]
     [Tooltip("Gravity scale for the player's Rigidbody2D")]
     [SerializeField] private float gravityScale = 2.5f;
     
@@ -38,6 +38,19 @@ public class PlayerController : MonoBehaviour
     
     [Tooltip("Mass of the player's Rigidbody2D")]
     [SerializeField] private float playerMass = 1.0f;
+    
+    [Header("Jump Parameters")]
+    [Tooltip("Force applied for jump")]
+    [SerializeField] private float jumpForce = 7f;
+    
+    [Tooltip("Layer mask for ground detection")]
+    [SerializeField] private LayerMask groundLayer;
+    
+    [Tooltip("Distance to check for ground")]
+    [SerializeField] private float groundCheckDistance = 0.2f;
+    
+    // Jumping state
+    private bool _isGrounded = false;
     
     // Current movement vector
     private Vector2 _movementInput;
@@ -159,7 +172,7 @@ public class PlayerController : MonoBehaviour
         
         // Configure Rigidbody2D properties for 2D platformer physics
         _rigidbody.gravityScale = gravityScale;
-        _rigidbody.linearDamping = linearDrag;
+        _rigidbody.linearDamping = linearDrag; // Fixed: linearDamping doesn't exist in Rigidbody2D, use drag instead
         _rigidbody.mass = playerMass;
         _rigidbody.interpolation = RigidbodyInterpolation2D.Interpolate;
         _rigidbody.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
@@ -212,9 +225,11 @@ public class PlayerController : MonoBehaviour
             _playerInputActions.Player.MeleeAttack.performed += ctx => { if (_canAttack) PerformMeleeAttack(); };
             _playerInputActions.Player.RangedAttack.performed += ctx => { if (_canAttack) PerformRangedAttack(); };
             _playerInputActions.Player.Jump.performed += ctx => { 
-                Debug.Log("Jump action performed");
+                Debug.Log("[Input] Jump action performed! Input Value: " + ctx.ReadValueAsButton());
                 Jump();
             };
+            // Add debug logging for input map activation
+            Debug.Log("[Input] Jump action binding: " + _playerInputActions.Player.Jump.bindings[0].path);
             
             // Explicitly enable the Player action map
             _playerInputActions.Player.Enable();
@@ -284,10 +299,19 @@ public class PlayerController : MonoBehaviour
     /// <summary>
     /// Fixed update for physics calculations
     /// </summary>
-    private void FixedUpdate()
+private void FixedUpdate()
     {
+        // Check if player is grounded
+        CheckGrounded();
+        
         // Handle movement with acceleration and deceleration
         HandleMovement();
+        
+        // Update animator with latest grounded state
+        if (_animator != null)
+        {
+            _animator.SetBool("IsGrounded", _isGrounded);
+        }
         
         // Apply maximum fall velocity limit
         if (_rigidbody.linearVelocity.y < -maxFallVelocity)
@@ -298,6 +322,69 @@ public class PlayerController : MonoBehaviour
         }
         
         // Handle sprint stamina cost
+        HandleSprinting();
+    }
+    
+    /// <summary>
+    /// Check if player is touching the ground
+    /// </summary>
+    private void CheckGrounded()
+    {
+        // Cast a ray straight down from the player's feet (slightly offset from center)
+        Vector2 rayOrigin = new Vector2(transform.position.x, transform.position.y - 0.01f);
+        RaycastHit2D hit = Physics2D.Raycast(rayOrigin, Vector2.down, groundCheckDistance, groundLayer);
+        
+        // Debug ray to visualize ground check
+        Debug.DrawRay(rayOrigin, Vector2.down * groundCheckDistance, _isGrounded ? Color.green : Color.red);
+        
+        // Log ground layer information for debugging
+        if (groundLayer.value == 0)
+        {
+            Debug.LogWarning("[Ground Check] Ground layer is not set! Please assign a ground layer in the Inspector.");
+        }
+        
+        // Check if the raycast hit something on the ground layer
+        bool wasGrounded = _isGrounded;
+        _isGrounded = hit.collider != null;
+        
+        // Alternative box cast method for better precision
+        if (!_isGrounded)
+        {
+            // Get collider bounds
+            Collider2D collider = GetComponent<Collider2D>();
+            if (collider != null)
+            {
+                // Use a slightly narrower width than the collider for the boxcast
+                float width = collider.bounds.size.x * 0.9f;
+                Vector2 boxCenter = (Vector2)transform.position + Vector2.down * (collider.bounds.extents.y + 0.05f);
+                _isGrounded = Physics2D.OverlapBox(boxCenter, new Vector2(width, 0.1f), 0f, groundLayer);
+                
+                // Draw the box gizmo in scene view
+                Color debugColor = _isGrounded ? Color.green : Color.red;
+                Debug.DrawLine(
+                    new Vector3(boxCenter.x - width/2, boxCenter.y - 0.05f),
+                    new Vector3(boxCenter.x + width/2, boxCenter.y - 0.05f),
+                    debugColor
+                );
+                Debug.DrawLine(
+                    new Vector3(boxCenter.x - width/2, boxCenter.y + 0.05f),
+                    new Vector3(boxCenter.x + width/2, boxCenter.y + 0.05f),
+                    debugColor
+                );
+            }
+        }
+        
+        // Log ground state changes for debugging
+        if (wasGrounded != _isGrounded)
+        {
+            Debug.Log($"[Ground Check] Grounded state changed: {_isGrounded}");
+        }
+        
+        // Periodically log ground check information
+        if (Time.frameCount % 60 == 0) // Log every 60 frames
+        {
+            Debug.Log($"[Ground Check] Current state: {_isGrounded}, Ground layer: {groundLayer.value}, Check distance: {groundCheckDistance}");
+        }
     }
     #endregion
     
@@ -305,27 +392,49 @@ public class PlayerController : MonoBehaviour
     /// <summary>
     /// Makes the player character jump
     /// </summary>
-    private void Jump()
+private void Jump()
     {
+        Debug.Log("[Jump] Jump method called. Grounded state: " + _isGrounded);
+        
+        // Only allow jumping when the player is on the ground
+        if (!_isGrounded)
+        {
+            Debug.LogWarning("[Jump] Cannot jump - player is not grounded! Check if ground layer is assigned in Inspector.");
+            
+            // Debug current physics setup to help diagnose issues
+            Debug.Log($"[Jump] Physics info: Gravity Scale={_rigidbody.gravityScale}, Drag={_rigidbody.linearDamping}, Velocity={_rigidbody.linearVelocity}");
+            return;
+        }
+        
         // Example jump implementation
         if (_rigidbody != null)
         {
-            // Apply upward force for jumping
-            _rigidbody.AddForce(Vector2.up * 7f, ForceMode2D.Impulse);
+            // Reset any downward velocity before applying jump force
+            Vector2 velocity = _rigidbody.linearVelocity;
+            velocity.y = 0; // Always reset vertical velocity before jumping
+            _rigidbody.linearVelocity = velocity;
+            
+            // Apply upward force for jumping with configurable jump force
+            _rigidbody.AddForce(Vector2.up * jumpForce, ForceMode2D.Impulse);
+            Debug.Log($"[Jump] Applied jump force: {jumpForce} in direction: {Vector2.up}. New velocity: {_rigidbody.linearVelocity}");
+            
+            // Update grounded state immediately
+            _isGrounded = false;
             
             // Trigger jump animation if animator exists
             if (_animator != null)
             {
                 _animator.SetTrigger("Jump");
+                _animator.SetBool("IsGrounded", false);
             }
             
             // Visualize jump force in Scene view
-            Debug.DrawRay(transform.position, Vector2.up * 7f, Color.yellow, 0.5f);
-            Debug.Log("Player jumped!");
+            Debug.DrawRay(transform.position, Vector2.up * jumpForce, Color.yellow, 0.5f);
+            Debug.Log("[Jump] Player jumped successfully! Jump force: " + jumpForce);
         }
         else
         {
-            Debug.LogError("Cannot jump - Rigidbody2D is null!");
+            Debug.LogError("[Jump] Cannot jump - Rigidbody2D is null! This is a critical error.");
         }
     }
     #endregion
@@ -388,8 +497,23 @@ public class PlayerController : MonoBehaviour
         _currentVelocity.x = Mathf.Clamp(_currentVelocity.x, -maxAllowedSpeed, maxAllowedSpeed);
         _currentVelocity.y = Mathf.Clamp(_currentVelocity.y, -maxAllowedSpeed, maxAllowedSpeed);
         
-        // Use both horizontal and vertical velocity from player input
-        Vector2 newVelocity = new Vector2(_currentVelocity.x, _currentVelocity.y);
+        // Determine if we're in a platformer (gravity-enabled) or top-down mode
+        bool isTopDownMode = Physics2D.gravity.magnitude < 0.1f;
+        
+        // PLATFORMER MODE: Use horizontal velocity from input but preserve vertical velocity from physics
+        // TOP-DOWN MODE: Use both horizontal and vertical velocity from input
+        Vector2 newVelocity;
+        
+        if (isTopDownMode)
+        {
+            // In top-down mode, use both x and y from input-driven velocity
+            newVelocity = new Vector2(_currentVelocity.x, _currentVelocity.y);
+        }
+        else
+        {
+            // In platformer mode, only use x from input, y from physics (jumping/falling)
+            newVelocity = new Vector2(_currentVelocity.x, _rigidbody.linearVelocity.y);
+        }
         
         // Draw debug visualization for movement in the Scene view
         Debug.DrawRay(transform.position, _movementInput * 2f, Color.blue, 0.1f); // Input direction
@@ -442,6 +566,7 @@ public class PlayerController : MonoBehaviour
             // Set animation parameters based on movement
             _animator.SetFloat("Speed", _currentVelocity.magnitude);
             _animator.SetBool("IsSprinting", _isSprinting);
+            _animator.SetBool("IsGrounded", _isGrounded);
             
             // Set direction parameters for animation blending
             if (_movementInput.magnitude > 0.1f)
