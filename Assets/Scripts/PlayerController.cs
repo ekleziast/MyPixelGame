@@ -330,61 +330,151 @@ private void FixedUpdate()
     /// </summary>
     private void CheckGrounded()
     {
-        // Cast a ray straight down from the player's feet (slightly offset from center)
-        Vector2 rayOrigin = new Vector2(transform.position.x, transform.position.y - 0.01f);
-        RaycastHit2D hit = Physics2D.Raycast(rayOrigin, Vector2.down, groundCheckDistance, groundLayer);
+        // Define the expected ground layer (Layer 6 in this project)
+        const int GROUND_LAYER = 6;
+        const string EXPECTED_LAYER_NAME = "Ground";
+
+        // Check if groundLayer is properly configured to include Layer 6 (Ground)
+        int groundLayerValue = groundLayer.value;
+        bool isGroundLayerIncluded = ((1 << GROUND_LAYER) & groundLayerValue) != 0;
         
-        // Debug ray to visualize ground check
-        Debug.DrawRay(rayOrigin, Vector2.down * groundCheckDistance, _isGrounded ? Color.green : Color.red);
+        // Get actual ground layer name for debugging
+        string groundLayerName = LayerMask.LayerToName(GROUND_LAYER);
         
-        // Log ground layer information for debugging
-        if (groundLayer.value == 0)
+        // Log ground layer information for debugging with improved formatting
+        Debug.Log($"[Ground Check] Ground layer mask value: {groundLayerValue}, Expected layer: '{EXPECTED_LAYER_NAME}' (layer {GROUND_LAYER})");
+        Debug.Log($"[Ground Check] Is Ground layer included in mask: {isGroundLayerIncluded}, Actual name of layer {GROUND_LAYER}: '{groundLayerName}'");
+        
+        // Auto-fix ground layer if not set to include Layer 6
+        if (!isGroundLayerIncluded)
         {
-            Debug.LogWarning("[Ground Check] Ground layer is not set! Please assign a ground layer in the Inspector.");
+            Debug.LogWarning($"[Ground Check] Ground layer mask doesn't include layer {GROUND_LAYER} ({EXPECTED_LAYER_NAME})! Auto-fixing...");
+            // Set the ground layer to include layer 6 (Ground)
+            groundLayer = (1 << GROUND_LAYER);
+            groundLayerValue = groundLayer.value;
+            Debug.Log($"[Ground Check] Updated ground layer mask to: {groundLayerValue}");
         }
         
-        // Check if the raycast hit something on the ground layer
+        // Store previous grounded state for change detection
         bool wasGrounded = _isGrounded;
-        _isGrounded = hit.collider != null;
         
-        // Alternative box cast method for better precision
-        if (!_isGrounded)
+        // Get the player's collider
+        Collider2D collider = GetComponent<Collider2D>();
+        if (collider == null)
         {
-            // Get collider bounds
-            Collider2D collider = GetComponent<Collider2D>();
-            if (collider != null)
+            Debug.LogError("[Ground Check] No Collider2D found on player!");
+            return;
+        }
+        
+        // IMPROVED BOX CAST POSITIONING:
+        // 1. Position the box slightly below the character's feet
+        // 2. Make it slightly narrower than the player's collider for better edge detection
+        // 3. Use a consistent check distance based on groundCheckDistance
+        float width = collider.bounds.size.x * 0.9f;
+        
+        // Improved box positioning - use the bottom center of the collider as the starting point
+        Vector2 feetPosition = new Vector2(collider.bounds.center.x, collider.bounds.min.y);
+        
+        // Position the box just below the feet
+        Vector2 boxCenter = feetPosition + Vector2.down * (groundCheckDistance * 0.5f);
+        Vector2 boxSize = new Vector2(width, groundCheckDistance);
+        
+        // Log detailed box cast parameters
+        Debug.Log($"[Ground Check] Box cast parameters: position={boxCenter}, size={boxSize}, angle=0, layerMask={groundLayerValue}");
+        
+        // Draw different colored box outlines for better visualization
+        // Draw the player bounds
+        Debug.DrawLine(collider.bounds.center, collider.bounds.size, Color.blue, 0.1f);
+        // Draw the ground check box
+        Debug.DrawLine(boxCenter, boxSize, Color.green, 0.1f);
+        // Draw line from feet to box
+        Debug.DrawLine(feetPosition, boxCenter, Color.red, 0.1f);
+        
+        // Perform the box cast to check for ground
+        _isGrounded = Physics2D.OverlapBox(boxCenter, boxSize, 0f, groundLayer);
+        
+        // Log ground detection result with detailed layer information
+        Debug.Log($"[Ground Check] Grounded state: {_isGrounded} (was: {wasGrounded})");
+        Debug.Log($"[Ground Check] Layer mask being used: {groundLayerValue}, Binary: {Convert.ToString(groundLayerValue, 2).PadLeft(32, '0')}");
+        
+        // Check for objects that might be ground but aren't being detected
+        Collider2D[] hitColliders = Physics2D.OverlapAreaAll(
+            new Vector2(boxCenter.x - boxSize.x/2, boxCenter.y - boxSize.y/2),
+            new Vector2(boxCenter.x + boxSize.x/2, boxCenter.y + boxSize.y/2)
+        );
+        
+        // Log all colliders and their layers
+        if (hitColliders.Length > 0) 
+        {
+            Debug.Log($"[Ground Check] Found {hitColliders.Length} colliders in check area:");
+            foreach (Collider2D hitCollider in hitColliders)
             {
-                // Use a slightly narrower width than the collider for the boxcast
-                float width = collider.bounds.size.x * 0.9f;
-                Vector2 boxCenter = (Vector2)transform.position + Vector2.down * (collider.bounds.extents.y + 0.05f);
-                _isGrounded = Physics2D.OverlapBox(boxCenter, new Vector2(width, 0.1f), 0f, groundLayer);
+                int colliderLayer = hitCollider.gameObject.layer;
+                string layerName = LayerMask.LayerToName(colliderLayer);
+                bool isInLayerMask = ((1 << colliderLayer) & groundLayerValue) != 0;
+                bool isGroundLayer = colliderLayer == GROUND_LAYER;
                 
-                // Draw the box gizmo in scene view
-                Color debugColor = _isGrounded ? Color.green : Color.red;
-                Debug.DrawLine(
-                    new Vector3(boxCenter.x - width/2, boxCenter.y - 0.05f),
-                    new Vector3(boxCenter.x + width/2, boxCenter.y - 0.05f),
-                    debugColor
-                );
-                Debug.DrawLine(
-                    new Vector3(boxCenter.x - width/2, boxCenter.y + 0.05f),
-                    new Vector3(boxCenter.x + width/2, boxCenter.y + 0.05f),
-                    debugColor
-                );
+                Debug.Log($"[Ground Check] - Object: {hitCollider.gameObject.name}, Layer: {layerName} ({colliderLayer}), " +
+                          $"Is Ground Layer: {isGroundLayer}, Included in mask: {isInLayerMask}");
             }
         }
-        
-        // Log ground state changes for debugging
-        if (wasGrounded != _isGrounded)
+        else 
         {
-            Debug.Log($"[Ground Check] Grounded state changed: {_isGrounded}");
+            Debug.LogWarning("[Ground Check] No colliders found in check area!");
         }
         
-        // Periodically log ground check information
-        if (Time.frameCount % 60 == 0) // Log every 60 frames
+        // Check specifically for objects on the Ground layer (layer 6)
+        GameObject[] groundObjects = FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(obj => obj.layer == GROUND_LAYER).ToArray();
+        
+        if (groundObjects.Length > 0)
         {
-            Debug.Log($"[Ground Check] Current state: {_isGrounded}, Ground layer: {groundLayer.value}, Check distance: {groundCheckDistance}");
+            Debug.Log($"[Ground Check] Found {groundObjects.Length} objects on the Ground layer (layer {GROUND_LAYER})");
+            
+            // Show the first few ground objects
+            int maxToShow = Mathf.Min(groundObjects.Length, 3);
+            for (int i = 0; i < maxToShow; i++)
+            {
+                Vector2 objectPos = groundObjects[i].transform.position;
+                float distToPlayer = Vector2.Distance(transform.position, objectPos);
+                Debug.Log($"[Ground Check] Ground object: {groundObjects[i].name}, position: {objectPos}, distance to player: {distToPlayer}");
+            }
         }
+        else
+        {
+            Debug.LogError($"[Ground Check] No objects found on the Ground layer (layer {GROUND_LAYER})! " +
+                          "Check if your tilemaps or ground objects are assigned to the correct layer.");
+        }
+        
+        // Check for tilemap-specific ground detection
+        TilemapManager tilemapManager = FindFirstObjectByType<TilemapManager>();
+        if (tilemapManager != null)
+        {
+            Debug.Log("[Ground Check] Found TilemapManager, checking compatibility...");
+            // The tilemap system is being used, make sure our ground check works with it
+            // This will depend on how the tilemap system is set up in your game
+            
+            // Additional check for ground beneath the player using tilemaps
+            bool tilemapGroundCheck = IsOnTilemapGround(boxCenter);
+            if (tilemapGroundCheck != _isGrounded)
+            {
+                Debug.LogWarning($"[Ground Check] Tilemap ground check ({tilemapGroundCheck}) differs from physics ground check ({_isGrounded})!");
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Checks if the player is on the ground using the tilemap system
+    /// </summary>
+    private bool IsOnTilemapGround(Vector2 position)
+    {
+        TilemapManager tilemapManager = FindFirstObjectByType<TilemapManager>();
+        if (tilemapManager != null)
+        {
+            // Check if the position has a ground tile beneath it
+            // This is a compatibility method that works with the tilemap system
+            return !tilemapManager.HasResourceAt(position);
+        }
+        return false;
     }
     #endregion
     

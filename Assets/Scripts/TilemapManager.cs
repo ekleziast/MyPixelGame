@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Tilemaps;
 
+// LayerSetup is used to ensure proper layer assignments for game objects
 /// <summary>
 /// TilemapManager handles the generation and management of a chunk-based open world tilemap.
 /// Features include:
@@ -13,6 +14,10 @@ using UnityEngine.Tilemaps;
 /// </summary>
 public class TilemapManager : MonoBehaviour
 {
+    [Header("Layer Management")]
+    [Tooltip("Reference to the LayerSetup component that handles layer assignments")]
+    public LayerSetup layerSetup;
+
     [Header("Tilemap References")]
     public Tilemap groundTilemap;
     public Tilemap resourceTilemap;
@@ -52,6 +57,36 @@ public class TilemapManager : MonoBehaviour
 
     void Start()
     {
+        // Set the ground tilemap to the Ground layer (layer 6)
+        // This is critical for player ground detection to work correctly
+        if (groundTilemap != null)
+        {
+            groundTilemap.gameObject.layer = 6; // Layer 6 is "Ground"
+            Debug.Log("Ground tilemap layer set to: " + LayerMask.LayerToName(6) + " (layer 6)");
+        }
+        else
+        {
+            Debug.LogWarning("Ground tilemap is not assigned! Player ground detection will not work.");
+        }
+
+        // If we have a LayerSetup component, use it to ensure all required layers are set correctly
+        if (layerSetup == null)
+        {
+            // Try to find the LayerSetup component in the scene
+            layerSetup = FindFirstObjectByType<LayerSetup>();
+            
+            if (layerSetup == null)
+            {
+                Debug.LogWarning("LayerSetup component not found. Some layer settings may not be applied correctly.");
+            }
+        }
+
+        // Apply layer setup if available
+        if (layerSetup != null)
+        {
+            layerSetup.ApplyLayerSettings();
+        }
+
         // Initialize the system
         InitializeWorld();
         
@@ -193,7 +228,8 @@ public class TilemapManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Places a ground tile at the specified position based on the biome
+    /// Places a ground tile at the specified position based on the biome.
+    /// All ground tiles must be on the Ground layer (layer 6) for player ground detection to work properly.
     /// </summary>
     private void PlaceGroundTile(Vector3Int position)
     {
@@ -204,6 +240,12 @@ public class TilemapManager : MonoBehaviour
         if (tileToPlace != null)
         {
             groundTilemap.SetTile(position, tileToPlace);
+            
+            // Ensure this tilemap remains on the Ground layer for proper collision detection
+            if (groundTilemap.gameObject.layer != 6)
+            {
+                groundTilemap.gameObject.layer = 6; // Layer 6 is "Ground"
+            }
         }
     }
 
