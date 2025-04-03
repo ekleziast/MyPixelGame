@@ -26,6 +26,19 @@ public class PlayerController : MonoBehaviour
     [Tooltip("Multiplier applied when player is sprinting")]
     [SerializeField] private float sprintMultiplier = 1.5f;
     
+    [Header("Physics Parameters")]
+    [Tooltip("Gravity scale for the player's Rigidbody2D")]
+    [SerializeField] private float gravityScale = 2.5f;
+    
+    [Tooltip("Maximum fall velocity")]
+    [SerializeField] private float maxFallVelocity = 15f;
+    
+    [Tooltip("Linear drag for horizontal movement")]
+    [SerializeField] private float linearDrag = 0.5f;
+    
+    [Tooltip("Mass of the player's Rigidbody2D")]
+    [SerializeField] private float playerMass = 1.0f;
+    
     // Current movement vector
     private Vector2 _movementInput;
     private Vector2 _currentVelocity;
@@ -136,10 +149,40 @@ public class PlayerController : MonoBehaviour
     /// </summary>
     private void Awake()
     {
-        // Get component references
+        // Get and verify component references
         _rigidbody = GetComponent<Rigidbody2D>();
+        if (_rigidbody == null)
+        {
+            Debug.LogError("Rigidbody2D component not found on player!");
+            _rigidbody = gameObject.AddComponent<Rigidbody2D>();
+        }
+        
+        // Configure Rigidbody2D properties for 2D platformer physics
+        _rigidbody.gravityScale = gravityScale;
+        _rigidbody.linearDamping = linearDrag;
+        _rigidbody.mass = playerMass;
+        _rigidbody.interpolation = RigidbodyInterpolation2D.Interpolate;
+        _rigidbody.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+        _rigidbody.constraints = RigidbodyConstraints2D.FreezeRotation;
+        _rigidbody.sleepMode = RigidbodySleepMode2D.NeverSleep;
+        
+        // Additional physics setup for better platformer feel
+        Physics2D.queriesHitTriggers = true;
+        Physics2D.queriesStartInColliders = false;
+        
+        Debug.Log($"Rigidbody2D configured with: Gravity Scale={gravityScale}, Drag={linearDrag}, Mass={playerMass}");
+        
         _animator = GetComponent<Animator>();
+        if (_animator == null)
+        {
+            Debug.LogWarning("Animator component not found on player!");
+        }
+        
         _spriteRenderer = GetComponent<SpriteRenderer>();
+        if (_spriteRenderer == null)
+        {
+            Debug.LogWarning("SpriteRenderer component not found on player!");
+        }
         
         // Initialize stats
         currentHealth = maxHealth;
@@ -149,15 +192,38 @@ public class PlayerController : MonoBehaviour
         // Initialize input actions from Assets/Scripts/Input directory
         _playerInputActions = new PlayerInputActions();
         
-        // Set up input action callbacks
-        _playerInputActions.Player.Movement.performed += ctx => _movementInput = ctx.ReadValue<Vector2>();
-        _playerInputActions.Player.Movement.canceled += ctx => _movementInput = Vector2.zero;
-        
-        _playerInputActions.Player.Sprint.performed += ctx => _isSprinting = ctx.ReadValueAsButton() && currentStamina > 0;
-        _playerInputActions.Player.Sprint.canceled += ctx => _isSprinting = false;
-        
-        _playerInputActions.Player.MeleeAttack.performed += ctx => { if (_canAttack) PerformMeleeAttack(); };
-        _playerInputActions.Player.RangedAttack.performed += ctx => { if (_canAttack) PerformRangedAttack(); };
+        if (_playerInputActions != null)
+        {
+            Debug.Log("Input system initialized successfully");
+            
+            // Set up input action callbacks
+            _playerInputActions.Player.Movement.performed += ctx => {
+                _movementInput = ctx.ReadValue<Vector2>();
+                Debug.Log($"Movement input: {_movementInput.x}, {_movementInput.y}");
+            };
+            _playerInputActions.Player.Movement.canceled += ctx => {
+                _movementInput = Vector2.zero;
+                Debug.Log("Movement input canceled");
+            };
+            
+            _playerInputActions.Player.Sprint.performed += ctx => _isSprinting = ctx.ReadValueAsButton() && currentStamina > 0;
+            _playerInputActions.Player.Sprint.canceled += ctx => _isSprinting = false;
+            
+            _playerInputActions.Player.MeleeAttack.performed += ctx => { if (_canAttack) PerformMeleeAttack(); };
+            _playerInputActions.Player.RangedAttack.performed += ctx => { if (_canAttack) PerformRangedAttack(); };
+            _playerInputActions.Player.Jump.performed += ctx => { 
+                Debug.Log("Jump action performed");
+                Jump();
+            };
+            
+            // Explicitly enable the Player action map
+            _playerInputActions.Player.Enable();
+            Debug.Log("Player input action map enabled");
+        }
+        else
+        {
+            Debug.LogError("Failed to initialize input system!");
+        }
         
         // Find and configure camera follow
         _cameraFollow = Camera.main.GetComponent<CameraFollow>();
@@ -176,7 +242,20 @@ public class PlayerController : MonoBehaviour
     /// </summary>
     private void OnEnable()
     {
-        _playerInputActions.Enable();
+        if (_playerInputActions != null)
+        {
+            _playerInputActions.Enable();
+            // Make sure the Player action map is enabled
+            _playerInputActions.Player.Enable();
+            Debug.Log("Input actions enabled");
+        }
+        else
+        {
+            Debug.LogError("Input actions not initialized in OnEnable!");
+            // Try to initialize again as fallback
+            _playerInputActions = new PlayerInputActions();
+            _playerInputActions?.Enable();
+        }
     }
     
     /// <summary>
@@ -209,9 +288,47 @@ public class PlayerController : MonoBehaviour
     {
         // Handle movement with acceleration and deceleration
         HandleMovement();
+        // Handle movement with acceleration and deceleration
+        HandleMovement();
+        
+        // Apply maximum fall velocity limit
+        if (_rigidbody.linearVelocity.y < -maxFallVelocity)
+        {
+            Vector2 clampedVelocity = _rigidbody.linearVelocity;
+            clampedVelocity.y = -maxFallVelocity;
+            _rigidbody.linearVelocity = clampedVelocity;
+        }
         
         // Handle sprint stamina cost
-        HandleSprinting();
+    }
+    #endregion
+    
+    #region Jump Methods
+    /// <summary>
+    /// Makes the player character jump
+    /// </summary>
+    private void Jump()
+    {
+        // Example jump implementation
+        if (_rigidbody != null)
+        {
+            // Apply upward force for jumping
+            _rigidbody.AddForce(Vector2.up * 7f, ForceMode2D.Impulse);
+            
+            // Trigger jump animation if animator exists
+            if (_animator != null)
+            {
+                _animator.SetTrigger("Jump");
+            }
+            
+            // Visualize jump force in Scene view
+            Debug.DrawRay(transform.position, Vector2.up * 7f, Color.yellow, 0.5f);
+            Debug.Log("Player jumped!");
+        }
+        else
+        {
+            Debug.LogError("Cannot jump - Rigidbody2D is null!");
+        }
     }
     #endregion
 
@@ -221,11 +338,34 @@ public class PlayerController : MonoBehaviour
     /// </summary>
     private void HandleMovement()
     {
-        // Calculate target velocity
+        // Sanity check: Ensure rigidbody exists
+        if (_rigidbody == null)
+        {
+            Debug.LogError("HandleMovement: Rigidbody2D is null! Cannot apply movement.");
+            return;
+        }
+
+        // Debug movement input with more details
+        Debug.Log($"HandleMovement: Input Vector = ({_movementInput.x}, {_movementInput.y}), Magnitude = {_movementInput.magnitude}, IsSprinting = {_isSprinting}");
+        
+        // Get current rigidbody velocity to preserve vertical component
+        Vector2 currentRigidbodyVelocity = _rigidbody.linearVelocity;
+        Debug.Log($"Current Rigidbody Velocity: ({currentRigidbodyVelocity.x}, {currentRigidbodyVelocity.y})");
+        
+        // Calculate target horizontal velocity
         float currentMaxSpeed = _isSprinting ? maxSpeed * sprintMultiplier : maxSpeed;
         Vector2 targetVelocity = _movementInput * currentMaxSpeed;
+
+        // Sanity check: Validate movement input isn't NaN or infinite
+        if (float.IsNaN(_movementInput.x) || float.IsNaN(_movementInput.y) || 
+            float.IsInfinity(_movementInput.x) || float.IsInfinity(_movementInput.y))
+        {
+            Debug.LogWarning("HandleMovement: Invalid movement input detected (NaN or Infinity). Resetting to zero.");
+            _movementInput = Vector2.zero;
+            targetVelocity = Vector2.zero;
+        }
         
-        // Apply acceleration or deceleration
+        // Apply acceleration or deceleration to horizontal movement only
         if (_movementInput.magnitude > 0.1f)
         {
             // Apply acceleration
@@ -244,14 +384,34 @@ public class PlayerController : MonoBehaviour
                 deceleration * Time.fixedDeltaTime
             );
         }
+
+        // Sanity check: Clamp velocity to prevent extreme values
+        float maxAllowedSpeed = currentMaxSpeed * 1.5f; // Allow some buffer over max speed
+        _currentVelocity.x = Mathf.Clamp(_currentVelocity.x, -maxAllowedSpeed, maxAllowedSpeed);
         
+        // Preserve vertical velocity from rigidbody while using calculated horizontal velocity
+        Vector2 newVelocity = new Vector2(_currentVelocity.x, currentRigidbodyVelocity.y);
+        
+        // Draw debug visualization for movement in the Scene view
+        Debug.DrawRay(transform.position, _movementInput * 2f, Color.blue, 0.1f); // Input direction
+        Debug.DrawRay(transform.position, _currentVelocity, Color.green, 0.1f); // Current velocity
+        Debug.DrawRay(transform.position, newVelocity, Color.red, 0.1f); // Final velocity
+
         // Apply velocity to rigidbody
-        _rigidbody.linearVelocity = _currentVelocity;
+        _rigidbody.linearVelocity = newVelocity;
         
         // If we're moving, remember direction for attacks
         if (_movementInput.magnitude > 0.1f)
         {
             _lastAttackDirection = _movementInput.normalized;
+        }
+
+        // Show additional debug visualization for movement state
+        if (Application.isEditor)
+        {
+            string movementState = _movementInput.magnitude > 0.1f ? "Moving" : "Idle";
+            string sprintState = _isSprinting ? "Sprinting" : "Normal";
+            Debug.Log($"Movement State: {movementState}, Speed Mode: {sprintState}, Current Speed: {_currentVelocity.magnitude:F2}/{currentMaxSpeed:F2}");
         }
     }
 
