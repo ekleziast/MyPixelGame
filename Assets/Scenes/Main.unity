@@ -636,18 +636,19 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 59d8ea8351b94044b89de10e717d8641, type: 2}
   - {fileID: 11400000, guid: b83fd96137bd2f742ace52b6d294d078, type: 2}
   - {fileID: 11400000, guid: f19ed25587b49144c8eedd29556a3058, type: 2}
-  desertTiles: []
-  snowTiles: []
+  - {fileID: 11400000, guid: 5329b3ac82953514e87d039f39fc3ddd, type: 2}
+  - {fileID: 11400000, guid: 25b69399fd9aafe43b0792079ae1df96, type: 2}
+  - {fileID: 11400000, guid: fada2813eea9e0a478223c986ca746eb, type: 2}
+  - {fileID: 11400000, guid: c1ccc688c0359a04683a91ce38f5147e, type: 2}
+  - {fileID: 11400000, guid: 52f96b28ff73cec47953d2160de15c21, type: 2}
+  - {fileID: 11400000, guid: 5b72887f43fa42a46832d19647400126, type: 2}
+  - {fileID: 11400000, guid: ee03e14b6fd757542b6b7d9d1822ed25, type: 2}
+  - {fileID: 11400000, guid: 1ec2ff4345958a0479622b4329f35072, type: 2}
   fogTile: {fileID: 0}
   forestResources: []
-  desertResources: []
-  snowResources: []
   chunkSize: 16
   worldSize: 100
-  noiseScale: 0.05
   seed: 0
-  forestThreshold: 0.4
-  desertThreshold: 0.7
   resourceDensity: 10
   revealRadius: 5
   permanentReveal: 1

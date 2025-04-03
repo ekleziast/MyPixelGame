@@ -6,10 +6,10 @@ using UnityEngine.Tilemaps;
 /// <summary>
 /// TilemapManager handles the generation and management of a chunk-based open world tilemap.
 /// Features include:
-/// - Procedural generation using Perlin noise for different biomes
+/// - Forest biome generation throughout the world
 /// - Chunk-based loading system for optimization
 /// - Fog of war system that reveals areas as the player explores
-/// - Resource distribution across different biomes
+/// - Resource distribution across the forest
 /// </summary>
 public class TilemapManager : MonoBehaviour
 {
@@ -20,25 +20,15 @@ public class TilemapManager : MonoBehaviour
 
     [Header("Tile Assets")]
     public TileBase[] forestTiles;
-    public TileBase[] desertTiles;
-    public TileBase[] snowTiles;
     public TileBase fogTile;
 
     [Header("Resource Tiles")]
     public TileBase[] forestResources; // Trees, bushes, etc.
-    public TileBase[] desertResources; // Cacti, bones, etc.
-    public TileBase[] snowResources;   // Rocks, ice formations, etc.
 
     [Header("Generation Settings")]
     public int chunkSize = 16;         // Size of each chunk (16x16 tiles)
     public int worldSize = 100;        // World size in chunks (resulting in worldSize x worldSize chunks)
-    public float noiseScale = 0.05f;   // Scale of the Perlin noise
     public int seed = 0;               // Seed for random generation
-
-    [Header("Biome Settings")]
-    public float forestThreshold = 0.4f;  // Values below this are forest
-    public float desertThreshold = 0.7f;  // Values between forest and this are desert
-                                          // Values above this are snow
 
     [Header("Resource Settings")]
     [Range(0, 100)]
@@ -57,9 +47,7 @@ public class TilemapManager : MonoBehaviour
     // Enum to track biome types
     public enum BiomeType
     {
-        Forest,
-        Desert,
-        Snow
+        Forest
     }
 
     void Start()
@@ -173,12 +161,12 @@ public class TilemapManager : MonoBehaviour
             {
                 Vector3Int tilePos = chunkStartPos + new Vector3Int(x, y, 0);
                 
-                // Generate biome for this tile
-                BiomeType biome = GenerateBiome(tilePos);
+                // All tiles are Forest biome
+                BiomeType biome = BiomeType.Forest;
                 biomeMap[new Vector2Int(tilePos.x, tilePos.y)] = biome;
                 
-                // Add the ground tile based on biome
-                PlaceGroundTile(tilePos, biome);
+                // Add the ground tile
+                PlaceGroundTile(tilePos);
                 
                 // Add resources with some probability
                 if (Random.Range(0, 100) < resourceDensity)
@@ -196,53 +184,21 @@ public class TilemapManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Determines the biome type based on Perlin noise
+    /// Returns the Forest biome type (only biome in the game)
     /// </summary>
     private BiomeType GenerateBiome(Vector3Int position)
     {
-        // Calculate a noise value for this position
-        float noiseValue = Mathf.PerlinNoise(
-            (position.x + seed) * noiseScale,
-            (position.y + seed) * noiseScale
-        );
-        
-        // Determine the biome type based on the noise value
-        if (noiseValue < forestThreshold)
-        {
-            return BiomeType.Forest;
-        }
-        else if (noiseValue < desertThreshold)
-        {
-            return BiomeType.Desert;
-        }
-        else
-        {
-            return BiomeType.Snow;
-        }
+        // Always return Forest biome
+        return BiomeType.Forest;
     }
 
     /// <summary>
     /// Places a ground tile at the specified position based on the biome
     /// </summary>
-    private void PlaceGroundTile(Vector3Int position, BiomeType biome)
+    private void PlaceGroundTile(Vector3Int position)
     {
-        TileBase tileToPlace = null;
-        
-        // Select a random tile from the appropriate biome array
-        switch (biome)
-        {
-            case BiomeType.Forest:
-                tileToPlace = forestTiles[Random.Range(0, forestTiles.Length)];
-                break;
-                
-            case BiomeType.Desert:
-                tileToPlace = desertTiles[Random.Range(0, desertTiles.Length)];
-                break;
-                
-            case BiomeType.Snow:
-                tileToPlace = snowTiles[Random.Range(0, snowTiles.Length)];
-                break;
-        }
+        // Select a random forest tile
+        TileBase tileToPlace = forestTiles[Random.Range(0, forestTiles.Length)];
         
         // Place the selected tile
         if (tileToPlace != null)
@@ -258,29 +214,10 @@ public class TilemapManager : MonoBehaviour
     {
         TileBase resourceToPlace = null;
         
-        // Select a random resource from the appropriate biome array
-        switch (biome)
+        // Select a random resource from the forest resources
+        if (forestResources.Length > 0)
         {
-            case BiomeType.Forest:
-                if (forestResources.Length > 0)
-                {
-                    resourceToPlace = forestResources[Random.Range(0, forestResources.Length)];
-                }
-                break;
-                
-            case BiomeType.Desert:
-                if (desertResources.Length > 0)
-                {
-                    resourceToPlace = desertResources[Random.Range(0, desertResources.Length)];
-                }
-                break;
-                
-            case BiomeType.Snow:
-                if (snowResources.Length > 0)
-                {
-                    resourceToPlace = snowResources[Random.Range(0, snowResources.Length)];
-                }
-                break;
+            resourceToPlace = forestResources[Random.Range(0, forestResources.Length)];
         }
         
         // Place the selected resource
@@ -350,18 +287,8 @@ public class TilemapManager : MonoBehaviour
     /// </summary>
     public BiomeType GetBiomeAt(Vector3 worldPosition)
     {
-        // Convert world position to tilemap cell position
-        Vector3Int cellPosition = groundTilemap.WorldToCell(worldPosition);
-        Vector2Int key = new Vector2Int(cellPosition.x, cellPosition.y);
-        
-        // Return the biome if it exists in our map
-        if (biomeMap.ContainsKey(key))
-        {
-            return biomeMap[key];
-        }
-        
-        // If the biome hasn't been generated yet, determine it using noise
-        return GenerateBiome(cellPosition);
+        // Always return Forest biome
+        return BiomeType.Forest;
     }
 
     /// <summary>
