@@ -745,7 +745,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   groundTilemap: {fileID: 450816194}
-  resourceTilemap: {fileID: 0}
+  resourceTilemap: {fileID: 1849424367}
   fogTilemap: {fileID: 0}
   forestTiles:
   - {fileID: 11400000, guid: 80d6a0347d631424db06ee6b183a39e4, type: 2}
@@ -1119,7 +1119,7 @@ PrefabInstance:
     - target: {fileID: 5657391670675221042, guid: 139393adf4a087e4981128fbeaf4a252, type: 3}
       propertyPath: m_Controller
       value: 
-      objectReference: {fileID: 9100000, guid: 132805fe309e7a946b2a57ab0f7a678b, type: 2}
+      objectReference: {fileID: 9100000, guid: c68adbe12658dc7419484c99927fa7f3, type: 2}
     - target: {fileID: 8398041489309813023, guid: 139393adf4a087e4981128fbeaf4a252, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
