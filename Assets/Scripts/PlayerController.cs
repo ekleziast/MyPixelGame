@@ -288,8 +288,6 @@ public class PlayerController : MonoBehaviour
     {
         // Handle movement with acceleration and deceleration
         HandleMovement();
-        // Handle movement with acceleration and deceleration
-        HandleMovement();
         
         // Apply maximum fall velocity limit
         if (_rigidbody.linearVelocity.y < -maxFallVelocity)
@@ -365,7 +363,7 @@ public class PlayerController : MonoBehaviour
             targetVelocity = Vector2.zero;
         }
         
-        // Apply acceleration or deceleration to horizontal movement only
+        // Apply acceleration or deceleration to both horizontal and vertical movement
         if (_movementInput.magnitude > 0.1f)
         {
             // Apply acceleration
@@ -388,9 +386,10 @@ public class PlayerController : MonoBehaviour
         // Sanity check: Clamp velocity to prevent extreme values
         float maxAllowedSpeed = currentMaxSpeed * 1.5f; // Allow some buffer over max speed
         _currentVelocity.x = Mathf.Clamp(_currentVelocity.x, -maxAllowedSpeed, maxAllowedSpeed);
+        _currentVelocity.y = Mathf.Clamp(_currentVelocity.y, -maxAllowedSpeed, maxAllowedSpeed);
         
-        // Preserve vertical velocity from rigidbody while using calculated horizontal velocity
-        Vector2 newVelocity = new Vector2(_currentVelocity.x, currentRigidbodyVelocity.y);
+        // Use both horizontal and vertical velocity from player input
+        Vector2 newVelocity = new Vector2(_currentVelocity.x, _currentVelocity.y);
         
         // Draw debug visualization for movement in the Scene view
         Debug.DrawRay(transform.position, _movementInput * 2f, Color.blue, 0.1f); // Input direction
